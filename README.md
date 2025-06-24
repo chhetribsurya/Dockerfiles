@@ -14,6 +14,7 @@ A comprehensive collection of Docker containers designed for bioinformatics anal
   - [Genomic Annotation Environment](#genomic-annotation-environment)
   - [RStudio Environments](#rstudio-environments)
   - [WGCNA Enrichment Environment](#wgcna-enrichment-environment)
+  - [FRAGLE Environment](#fragle-environment)
 - [HPC Usage with Singularity](#hpc-usage-with-singularity)
 - [Advanced Configuration](#advanced-configuration)
 - [Troubleshooting](#troubleshooting)
@@ -28,6 +29,7 @@ This repository contains specialized Docker containers for bioinformatics analys
 - **Genomic Annotation Environment**: R-based genomic annotation tools
 - **RStudio Environments**: Interactive RStudio servers for analysis
 - **WGCNA Enrichment Environment**: Gene co-expression and enrichment analysis
+- **FRAGLE Environment**: Fragment Length Analysis for genomic data
 
 All containers are designed to work seamlessly with both Docker and Singularity, making them ideal for HPC environments.
 
@@ -41,6 +43,7 @@ All containers are designed to work seamlessly with both Docker and Singularity,
 | `enrich_env_rstudio` | Interactive enrichment analysis | RStudio 4.3.1 | clusterProfiler, org.Hs.eg.db, enrichplot |
 | `wgcna_enrich_randomForrest` | WGCNA + Random Forest | RStudio 4.3.1 | WGCNA, randomForest, clusterProfiler |
 | `wgcna_enrich` | Command-line enrichment | R 4.3.1 | clusterProfiler, WGCNA, enrichment tools |
+| `fragle` | Fragment Length Analysis | Python-based | SNAP-FRAGLE, fragment analysis tools |
 
 ## 📋 Prerequisites
 
@@ -96,6 +99,9 @@ docker build -t wgcna_enrich_rstudio:latest r_studio/wgcna_enrich_randomForrest/
 
 # Build WGCNA enrichment container
 docker build -t wgcna_enrich:latest wgcna_enrich/
+
+# Pull FRAGLE container (pre-built)
+docker pull prc992/snap-fragle:v1
 ```
 
 ### 3. Run Your First Container
@@ -105,6 +111,9 @@ docker run --rm -it base_python:latest python -c "import pandas; print('Hello fr
 
 # Run R container
 docker run --rm -it r_env:latest R -e "library(dplyr); print('Hello from dplyr!')"
+
+# Test FRAGLE container
+docker run --rm -it prc992/snap-fragle:v1 python -c "print('FRAGLE container ready!')"
 ```
 
 ## 📖 Detailed Usage
@@ -324,9 +333,173 @@ data/
     └── significant_genes_*.csv
 ```
 
+### FRAGLE Environment
+
+**Purpose**: Fragment Length Analysis for genomic data using the SNAP-FRAGLE tool.
+
+**Key Features**:
+- Python-based fragment analysis
+- SNAP-FRAGLE for comprehensive fragment length analysis
+- Optimized for HPC environments with SLURM
+- Multi-threaded processing support
+- Automated input/output folder management
+
+#### Docker Usage
+```bash
+# Pull the SNAP-FRAGLE Docker image
+docker pull prc992/snap-fragle:v1
+
+# Run FRAGLE analysis
+docker run --rm \
+  -v "$PWD/input:/mnt/I_Folder" \
+  -v "$PWD/output:/mnt/O_Folder" \
+  prc992/snap-fragle:v1 \
+  python /usr/src/app/main.py \
+    --input /mnt/I_Folder \
+    --output /mnt/O_Folder \
+    --mode R \
+    --cpu 8 \
+    --threads 8
+
+# Interactive Python session
+docker run --rm -it \
+  -v "$PWD:/workspace" \
+  -w /workspace \
+  prc992/snap-fragle:v1 python
+```
+
+#### Singularity Usage (HPC)
+```bash
+# Pull the container as Singularity image
+singularity pull fragle.sif docker://prc992/snap-fragle:v1
+
+# Run FRAGLE analysis
+singularity exec \
+  --pwd /usr/src/app \
+  --bind "$PWD/input:/mnt/I_Folder" \
+  --bind "$PWD/output:/mnt/O_Folder" \
+  fragle.sif \
+  python /usr/src/app/main.py \
+    --input /mnt/I_Folder \
+    --output /mnt/O_Folder \
+    --mode R \
+    --cpu 8 \
+    --threads 8
+```
+
+#### SLURM Job Submission
+
+The repository includes a pre-configured SLURM job script (`fragle/run_fragle.sh`) for easy HPC deployment:
+
+```bash
+# Make the script executable
+chmod +x fragle/run_fragle.sh
+
+# Submit the job
+sbatch fragle/run_fragle.sh
+
+# Or submit with custom parameters
+sbatch --partition=compute --mem=32G --cpus-per-task=16 fragle/run_fragle.sh
+```
+
+#### Customizing the FRAGLE Job Script
+
+You can modify the `fragle/run_fragle.sh` script to suit your specific needs:
+
+```bash
+# Edit the configuration section
+INPUT_FOLDER="/path/to/your/input/data"
+OUTPUT_FOLDER="/path/to/your/output/directory"
+CPU=$SLURM_CPUS_PER_TASK  # Uses SLURM allocation
+DOCKER_IMAGE="docker://prc992/snap-fragle:v1"
+
+# The script automatically:
+# - Loads Singularity module
+# - Sets up input/output bindings
+# - Runs FRAGLE with optimal parameters
+# - Provides detailed logging
+```
+
+#### Example Data Structure
+```
+input/
+├── sample1.bam          # Input BAM files
+├── sample2.bam
+└── sample3.bam
+
+output/
+├── fragment_lengths/    # Fragment length analysis results
+├── quality_metrics/     # Quality assessment files
+└── reports/            # Analysis reports
+```
+
+#### FRAGLE Parameters
+
+The tool supports various parameters for customization:
+
+- `--input`: Input folder containing BAM files
+- `--output`: Output folder for results
+- `--mode`: Analysis mode (R for regular analysis)
+- `--cpu`: Number of CPU cores to use
+- `--threads`: Number of threads for processing
+
+#### Monitoring and Logs
+
+```bash
+# Check job status
+squeue -u $USER
+
+# Monitor job logs
+tail -f slurm-*.out
+tail -f slurm-*.err
+
+# Check resource usage
+seff <job_id>
+```
+
 ## 🖥️ HPC Usage with Singularity
 
-### Setting Up Singularity Images
+### Running Containers with Singularity
+
+Singularity supports two main approaches for running containers:
+
+#### 1. Direct Docker URI (Recommended for Quick Testing)
+
+Singularity can run Docker images directly without converting them to `.sif` files first. This is convenient for quick testing and development:
+
+```bash
+# Run directly from Docker Hub (no .sif file needed)
+singularity exec docker://prc992/snap-fragle:v1 python -c "print('Hello from FRAGLE!')"
+
+# Run with volume mounting
+singularity exec \
+  --bind "$PWD/input:/mnt/I_Folder" \
+  --bind "$PWD/output:/mnt/O_Folder" \
+  docker://prc992/snap-fragle:v1 \
+  python /usr/src/app/main.py --input /mnt/I_Folder --output /mnt/O_Folder
+
+# Run R container directly
+singularity exec docker://your-registry/r_env:latest R -e "print('Hello from R!')"
+
+# Run Python container directly
+singularity exec docker://your-registry/base_python:latest python -c "import pandas; print('Hello from pandas!')"
+```
+
+**Advantages of Direct Docker URI:**
+- No need to download and store `.sif` files
+- Always uses the latest version from Docker Hub
+- Saves disk space
+- Faster setup for testing
+
+**Disadvantages:**
+- Requires internet connection for each run
+- Slower startup time (downloads image each time)
+- May fail if Docker Hub is unavailable
+- Not suitable for offline HPC environments
+
+#### 2. Converted Singularity Images (.sif files)
+
+For production HPC environments, it's recommended to convert Docker images to Singularity format:
 
 ```bash
 # Pull Docker images as Singularity images
@@ -336,6 +509,48 @@ singularity pull genomic_annotation.sif docker://your-registry/genomic_annotatio
 singularity pull enrich_rstudio.sif docker://your-registry/enrich_env_rstudio:latest
 singularity pull wgcna_rstudio.sif docker://your-registry/wgcna_enrich_rstudio:latest
 singularity pull wgcna_enrich.sif docker://your-registry/wgcna_enrich:latest
+singularity pull fragle.sif docker://prc992/snap-fragle:v1
+
+# Run using .sif files
+singularity exec base_python.sif python your_script.py
+singularity exec r_env.sif Rscript your_script.R
+singularity exec fragle.sif python /usr/src/app/main.py
+```
+
+**Advantages of .sif files:**
+- Faster startup time
+- Works offline (no internet required)
+- More reliable for production environments
+- Better performance
+- Version control (specific image versions)
+
+**Disadvantages:**
+- Requires initial download and storage space
+- Need to manually update when new versions are available
+
+### When to Use Each Approach
+
+| Use Case | Recommended Approach | Reason |
+|----------|---------------------|---------|
+| Quick testing/development | Direct Docker URI | Fast setup, no storage needed |
+| Production HPC jobs | .sif files | Reliability, performance |
+| Offline environments | .sif files | No internet dependency |
+| Frequent image updates | Direct Docker URI | Always latest version |
+| Large-scale batch processing | .sif files | Consistent performance |
+
+### Setting Up Singularity Images
+
+For production environments, convert your Docker images to Singularity format:
+
+```bash
+# Pull Docker images as Singularity images
+singularity pull base_python.sif docker://your-registry/base_python:latest
+singularity pull r_env.sif docker://your-registry/r_env:latest
+singularity pull genomic_annotation.sif docker://your-registry/genomic_annotation:latest
+singularity pull enrich_rstudio.sif docker://your-registry/enrich_env_rstudio:latest
+singularity pull wgcna_rstudio.sif docker://your-registry/wgcna_enrich_rstudio:latest
+singularity pull wgcna_enrich.sif docker://your-registry/wgcna_enrich:latest
+singularity pull fragle.sif docker://prc992/snap-fragle:v1
 ```
 
 ### Running RStudio on HPC
@@ -377,7 +592,7 @@ export USER=rstudio
 export PASSWORD=rstudio
 export PORT=8787
 
-# Run RStudio
+# Run RStudio (using .sif file for production)
 singularity exec \
   --cleanenv \
   --bind "$HOME:/home/$USER" \
@@ -419,8 +634,11 @@ ssh -N -L 8787:localhost:8787 username@your-hpc-cluster.edu
 # Load modules
 module load singularity
 
-# Run Python analysis
+# Run Python analysis (using .sif file for production)
 singularity exec base_python.sif python your_analysis_script.py
+
+# Alternative: Run directly from Docker URI (for testing)
+# singularity exec docker://your-registry/base_python:latest python your_analysis_script.py
 ```
 
 #### R Analysis Job
@@ -437,8 +655,11 @@ singularity exec base_python.sif python your_analysis_script.py
 # Load modules
 module load singularity
 
-# Run R analysis
+# Run R analysis (using .sif file for production)
 singularity exec r_env.sif Rscript your_r_script.R
+
+# Alternative: Run directly from Docker URI (for testing)
+# singularity exec docker://your-registry/r_env:latest Rscript your_r_script.R
 ```
 
 #### WGCNA Enrichment Job
@@ -455,8 +676,56 @@ singularity exec r_env.sif Rscript your_r_script.R
 # Load modules
 module load singularity
 
-# Run WGCNA enrichment analysis
+# Run WGCNA enrichment analysis (using .sif file for production)
 singularity exec wgcna_enrich.sif Rscript run_enrichment.R
+
+# Alternative: Run directly from Docker URI (for testing)
+# singularity exec docker://your-registry/wgcna_enrich:latest Rscript run_enrichment.R
+```
+
+#### FRAGLE Analysis Job
+```bash
+#!/bin/bash
+#SBATCH --job-name=fragle_analysis
+#SBATCH --partition=compute
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=16G
+#SBATCH --time=02:00:00
+#SBATCH --output=fragle_%j.out
+#SBATCH --error=fragle_%j.err
+
+# Load modules
+module load singularity
+
+# Set up paths
+INPUT_FOLDER="/path/to/your/input/data"
+OUTPUT_FOLDER="/path/to/your/output/directory"
+
+# Run FRAGLE analysis (using .sif file for production)
+singularity exec \
+  --pwd /usr/src/app \
+  --bind "$INPUT_FOLDER":/mnt/I_Folder \
+  --bind "$OUTPUT_FOLDER":/mnt/O_Folder \
+  fragle.sif \
+  python /usr/src/app/main.py \
+    --input /mnt/I_Folder \
+    --output /mnt/O_Folder \
+    --mode R \
+    --cpu $SLURM_CPUS_PER_TASK \
+    --threads $SLURM_CPUS_PER_TASK
+
+# Alternative: Run directly from Docker URI (for testing)
+# singularity exec \
+#   --pwd /usr/src/app \
+#   --bind "$INPUT_FOLDER":/mnt/I_Folder \
+#   --bind "$OUTPUT_FOLDER":/mnt/O_Folder \
+#   docker://prc992/snap-fragle:v1 \
+#   python /usr/src/app/main.py \
+#     --input /mnt/I_Folder \
+#     --output /mnt/O_Folder \
+#     --mode R \
+#     --cpu $SLURM_CPUS_PER_TASK \
+#     --threads $SLURM_CPUS_PER_TASK
 ```
 
 ## ⚙️ Advanced Configuration

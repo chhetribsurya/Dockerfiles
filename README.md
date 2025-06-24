@@ -898,7 +898,6 @@ tail -f slurm-*.err
 
 ### Documentation
 - [Docker Documentation](https://docs.docker.com/)
-- [Singularity Documentation](https://sylabs.io/guides/)
 - [SLURM Documentation](https://slurm.schedmd.com/documentation.html)
 - [Bioconductor Documentation](https://bioconductor.org/help/)
 

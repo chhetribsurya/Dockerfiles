@@ -907,9 +907,8 @@ tail -f slurm-*.err
 - [Singularity Hub](https://singularity-hub.org/) - Container registry
 
 ### Support
-- Check the [Issues](https://github.com/your-repo/issues) page for known problems
+- Check the issues page for known problems
 - Create a new issue for bugs or feature requests
-- Contact the maintainers for specific questions
 
 ---
 
